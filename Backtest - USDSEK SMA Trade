@@ -1,0 +1,110 @@
+'''
+Last updated: 1.25.2025
+'''
+
+#!/usr/bin/env python
+# coding: utf-8
+# In[12]:
+'''
+Strategy Outline
+Use simple moving averages (SMA) to identify FX trends.
+Buy USD/SEK when the short-term SMA (20-day) crosses above the long-term SMA (100-day).
+Sell USD/SEK when the short-term SMA crosses below the long-term SMA.
+Backtest over a 5-year horizon using daily price data.
+
+Vol-adjusted sizing using ATR to determine position size. 
+This way, we're adjusting for market conditions and ensuring that during higher volatility (when ATR is larger), we're taking smaller positions, and during low volatility, we're able to take larger positions. 
+It’s an adaptive approach that ensures consistent risk management across varying market environments.
+'''
+
+#Invite all of our frendz
+import pandas as pd
+import numpy as np
+import talib as ta
+import matplotlib.pyplot as plt
+import matplotlib
+import yfinance as yf
+import datetime
+
+#Environment-specifics
+initial_aum = 600000000
+risk_per_trade = 600000000 * 0.01
+one_lot = 100000
+margin = 2.00
+
+#Dataframes & Data-to-use
+    #Timeframe:
+horizon = datetime.timedelta(365*5) #5-year horizon
+
+    #Dataframe
+USDSEK_df = yf.download("USDSEK=X", datetime.date.today()-horizon,datetime.date.today())
+USDSEK_Close_Price = USDSEK_df['Close']
+
+    #Moving Averages
+sma20 = USDSEK_Close_Price.rolling(20).mean()      #blue
+sma100 = USDSEK_Close_Price.rolling(100).mean()    #orange
+
+    #Calculating our ATR
+highs = []
+lows = []
+closes = []
+ticker = "USDSEK=X"
+
+for i in range(len(USDSEK_df)):
+    highs.append(USDSEK_df["High"].loc[USDSEK_df['High'].index[i], "USDSEK=X"])
+    lows.append(USDSEK_df["Low"].loc[USDSEK_df["Low"].index[i], "USDSEK=X"])
+    closes.append(USDSEK_df["Low"].loc[USDSEK_df["Low"].index[i], "USDSEK=X"])
+highs_series = pd.Series(highs)
+highs_array = np.array(highs_series)
+lows_series = pd.Series(lows)
+lows_array = np.array(lows_series)
+closes_series = pd.Series(closes)
+closes_array = np.array(closes_series)
+ATR = ta.ATR(highs_array, lows_array, closes_array, timeperiod = 14)
+
+#Book
+PnLs = []
+positions = {}
+trade_book = []
+
+for i in range(len(USDSEK_Close_Price)):
+    if i >= 50:
+        if ATR[i] > 0.05:
+            #print(ATR[i])
+            if (sma20.loc[sma20.index[i-1], "USDSEK=X"] > sma100.loc[sma100.index[i-1], "USDSEK=X"]) and (sma20.loc[sma20.index[i], "USDSEK=X"] < sma100.loc[sma100.index[i], "USDSEK=X"]):
+                # Convert USD to SEK
+                USDtoSEK = risk_per_trade * USDSEK_Close_Price.loc[USDSEK_Close_Price.index[i], ticker]
+                # Determine value of lots in SEK
+                SEKtoLOT = one_lot * USDSEK_Close_Price.loc[USDSEK_Close_Price.index[i], ticker]
+                # How many lots can we buy? 
+                risk_played = USDtoSEK / SEKtoLOT
+                positions[USDSEK_Close_Price.index[i]] = {
+                    
+                    "Order": "SELL",
+                    "Price": USDSEK_Close_Price.loc[USDSEK_Close_Price.index[i], "USDSEK=X"],
+                    "Order Size": risk_played,
+                    "ATR": ATR[i]
+                }
+                
+                pd.concat([pd.Series(USDSEK_Close_Price.index[i], 
+                                     pd.Series(USDSEK_Close_Price.loc[USDSEK_Close_Price.index[i], 
+                                                                      ticker]))], ignore_index = True)
+                print(f"SELL @ {USDSEK_Close_Price.index[i]} {USDSEK_Close_Price.loc[USDSEK_Close_Price.index[i], ticker]}")
+                print(SEKtoLOT)
+                
+            elif (sma20.loc[sma20.index[i-1], "USDSEK=X"] < sma100.loc[sma100.index[i-1], "USDSEK=X"]) and (sma20.loc[sma20.index[i], "USDSEK=X"] > sma100.loc[sma100.index[i], "USDSEK=X"]):
+                print(f"BUY @ {USDSEK_Close_Price.index[i]} {USDSEK_Close_Price.loc[USDSEK_Close_Price.index[i], ticker]}")
+
+
+# In[179]:
+
+
+positions[pd.Timestamp("2021-05-12 00:00:00")]
+plt.plot(sma20)
+plt.plot(sma100)
+
+# In[132]:
+
+
+USDSEK_Close_Price.loc[USDSEK_Close_Price.index[1], "USDSEK=X"]
+

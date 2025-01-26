@@ -1,5 +1,9 @@
 '''
 Last updated: 1.26.2025
+
+USD/SEK ("U.S. Dollar / Swedish Krona") trading strategy that focuses on the Simple Moving Average ("SMA") trend. 
+20-day SMA vs 100-day SMA, over a 5-year horizon. 
+Vol is taken into consideration via an adjustment of +/- 0.5* of pip value. 
 '''
 
 import pandas as pd
